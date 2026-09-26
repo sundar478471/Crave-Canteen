@@ -30,6 +30,9 @@ export default defineConfig(({ mode }) => {
             theme_color: '#7c3aed',
             background_color: '#0f172a',
             display: 'standalone',
+            start_url: '/',
+            scope: '/',
+            orientation: 'portrait-primary',
             icons: [
               {
                 src: 'https://cdn-icons-png.flaticon.com/512/3075/3075977.png',
