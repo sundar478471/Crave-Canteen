@@ -1,0 +1,12 @@
+{
+  "name": "CraveCanteen - Smart Canteen Hub",
+  "description": "A modern canteen management system featuring real-time order tracking, smart food recommendations via Gemini, and a dedicated portal for canteen staff.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "openFiles": [
+    "manifest.json",
+    "sw.js"
+  ]
+}

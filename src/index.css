@@ -1,0 +1,162 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
+
+@layer base {
+  :root {
+    --background: #f8fafc;
+    --foreground: #0f172a;
+    --surface: #ffffff;
+    --surface-secondary: #f1f5f9;
+    --card: #ffffff;
+    --card-hover: #f8fafc;
+    --border: #e2e8f0;
+    --input: #f1f5f9;
+    --muted: #64748b;
+    --muted-foreground: #64748b;
+    --primary: #ea580c;
+    --primary-hover: #c2410c;
+    --primary-foreground: #ffffff;
+    --success: #059669;
+    --warning: #d97706;
+    --danger: #e11d48;
+    --info: #0284c7;
+    --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+    --overlay: rgba(15, 23, 42, 0.5);
+
+    /* Legacy compatibility variables */
+    --bg-main: var(--background);
+    --bg-card: var(--surface);
+    --bg-card-hover: var(--surface-secondary);
+    --border-color: var(--border);
+    --text-primary: var(--foreground);
+    --text-secondary: var(--muted-foreground);
+    --text-muted: var(--muted);
+    --accent-purple: #7c3aed;
+    --accent-purple-light: #8b5cf6;
+    --accent-emerald: var(--success);
+    --accent-amber: var(--warning);
+    --card-shadow: var(--shadow);
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(226, 232, 240, 0.8);
+  }
+
+  .dark, [data-theme="dark"] {
+    --background: #070b14;
+    --foreground: #f8fafc;
+    --surface: #0f172a;
+    --surface-secondary: #1e293b;
+    --card: #0f172a;
+    --card-hover: #1e293b;
+    --border: #1e293b;
+    --input: #1e293b;
+    --muted: #64748b;
+    --muted-foreground: #94a3b8;
+    --primary: #f97316;
+    --primary-hover: #ea580c;
+    --primary-foreground: #ffffff;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #f43f5e;
+    --info: #38bdf8;
+    --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
+    --overlay: rgba(7, 11, 20, 0.85);
+
+    /* Legacy compatibility variables */
+    --bg-main: var(--background);
+    --bg-card: var(--surface);
+    --bg-card-hover: var(--surface-secondary);
+    --border-color: var(--border);
+    --text-primary: var(--foreground);
+    --text-secondary: var(--muted-foreground);
+    --text-muted: var(--muted);
+    --accent-purple: #8b5cf6;
+    --accent-purple-light: #a78bfa;
+    --accent-emerald: var(--success);
+    --accent-amber: var(--warning);
+    --card-shadow: var(--shadow);
+    --glass-bg: rgba(15, 23, 42, 0.85);
+    --glass-border: rgba(30, 41, 59, 0.7);
+  }
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  transition: background-color 200ms cubic-bezier(0.4, 0, 0.2, 1), color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-x: hidden;
+}
+
+/* Reduced Motion Respect */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Glassmorphism utilities */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+}
+
+.glass-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* Glow effects */
+.glow-purple {
+  box-shadow: 0 0 25px -5px rgba(139, 92, 246, 0.4);
+}
+
+.glow-emerald {
+  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.4);
+}
+
+.glow-amber {
+  box-shadow: 0 0 25px -5px rgba(245, 158, 11, 0.4);
+}
+
+.glow-orange {
+  box-shadow: 0 0 25px -5px rgba(234, 88, 12, 0.4);
+}
+
+/* Animations */
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.03); }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 4s infinite ease-in-out;
+}

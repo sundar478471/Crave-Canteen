@@ -1,0 +1,11 @@
+{
+  "synonyms": {
+    "cheap": ["budget", "affordable", "low cost", "pocket friendly", "under", "below"],
+    "spicy": ["hot", "masala", "spiced", "tasty"],
+    "healthy": ["low calorie", "high protein", "fitness", "nutritious", "clean"],
+    "drink": ["beverage", "juice", "coffee", "tea", "shake", "soda", "cold drink"],
+    "breakfast": ["morning tiffin", "tiffin", "early", "dosa", "idli", "poha"],
+    "lunch": ["main course", "thali", "rice", "curry", "meals"],
+    "snack": ["quick bite", "evening snack", "samosa", "sandwich", "fries", "pakora"]
+  }
+}

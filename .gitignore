@@ -1,0 +1,55 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build & Cache
+dist
+dist-ssr
+dev-dist
+.firebase
+.vite
+.cache
+coverage
+
+# Environment & Local Configuration
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+*.local
+
+# Firebase Credentials & Service Accounts (CRITICAL)
+firebase-service-account.json
+firebase-service-account*.json
+firebase-applet-config.json
+
+# Certificates & Private Keys
+*.pem
+*.key
+*.crt
+
+# Project Specific Local Data
+receipts
+migrated_prompt_history
+buttons.txt
+
+# Editor & OS files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

@@ -1,0 +1,109 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a user in the system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "role": { "type": "string", "enum": ["STUDENT", "STAFF"] },
+        "avatar": { "type": "string" },
+        "rewardPoints": { "type": "number" },
+        "favorites": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "FoodItem": {
+      "title": "FoodItem",
+      "description": "Represents a food item in the menu.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "category": { "type": "string" },
+        "timeSlot": { "type": "string", "enum": ["Morning", "Evening", "Night", "All Day"] },
+        "image": { "type": "string" },
+        "estimatedTime": { "type": "number" },
+        "isAvailable": { "type": "boolean" },
+        "startHour": { "type": "number" },
+        "endHour": { "type": "number" },
+        "availableDays": { "type": "array", "items": { "type": "number" } },
+        "nutrition": {
+          "type": "object",
+          "properties": {
+            "calories": { "type": "number" },
+            "protein": { "type": "number" },
+            "carbs": { "type": "number" },
+            "fat": { "type": "number" }
+          }
+        }
+      },
+      "required": ["id", "name", "description", "price", "category", "timeSlot", "image", "estimatedTime", "isAvailable", "startHour", "endHour", "availableDays", "nutrition"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Represents a food order.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "foodId": { "type": "string" },
+              "quantity": { "type": "number" },
+              "name": { "type": "string" },
+              "price": { "type": "number" }
+            },
+            "required": ["foodId", "quantity", "name", "price"]
+          }
+        },
+        "totalAmount": { "type": "number" },
+        "discountApplied": { "type": "number" },
+        "status": { "type": "string", "enum": ["Booked", "Preparing", "Ready", "Collected", "Cancelled"] },
+        "createdAt": { "type": "number" },
+        "checkInTime": { "type": "number" },
+        "estimatedFinishTime": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["GPAY", "PAYTM", "PHONEPE", "AMAZONPAY", "CARD", "NB", "CASH"] },
+        "cancellationReason": { "type": "string" },
+        "refundStatus": { "type": "string", "enum": ["NONE", "PENDING", "PROCESSED"] }
+      },
+      "required": ["id", "userId", "userName", "items", "totalAmount", "status", "createdAt", "estimatedFinishTime"]
+    },
+    "Metadata": {
+      "title": "Metadata",
+      "description": "System metadata.",
+      "type": "object",
+      "properties": {
+        "currentId": { "type": "number" }
+      },
+      "required": ["currentId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles."
+    },
+    "/menu/{itemId}": {
+      "schema": { "$ref": "#/entities/FoodItem" },
+      "description": "Stores menu items."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Stores orders."
+    },
+    "/metadata/{docId}": {
+      "schema": { "$ref": "#/entities/Metadata" },
+      "description": "Stores system metadata, like order counters."
+    }
+  }
+}

@@ -1,0 +1,74 @@
+export type TimeSlot = 'Morning' | 'Evening' | 'Night' | 'All Day' | string;
+
+export interface NutritionInfo {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+export interface FoodItem {
+  id: string;
+  itemCode?: string;
+  name: string;
+  description: string;
+  shortDescription?: string;
+  price: number;
+  costPrice?: number;
+  sellingPrice?: number;
+  originalPrice?: number;
+  discount?: number;
+  tax?: number;
+  finalPrice?: number;
+  category: string;
+  subcategory?: string;
+  subcategoryId?: string;
+  mealTime?: 'Breakfast' | 'Lunch' | 'Evening' | 'All Day' | string;
+  foodType?: 'Veg' | 'Non-Veg' | 'Egg' | 'Snacks' | 'Juice' | 'Beverages' | 'Desserts' | 'Fast Food' | 'Combos' | 'Special Items' | string;
+  timeSlot?: TimeSlot;
+  image: string;
+  imageUrl?: string;
+  additionalImages?: string[];
+  estimatedTime?: number; 
+  preparationTime?: number;
+  stockQuantity?: number;
+  reservedQuantity?: number;
+  availableQuantity?: number;
+  minimumStockLevel?: number;
+  lowStockThreshold?: number;
+  unit?: string;
+  isAvailable: boolean;
+  isActive?: boolean;
+  availableFrom?: string;
+  availableUntil?: string;
+  isVegetarian?: boolean;
+  isNonVegetarian?: boolean;
+  containsEgg?: boolean;
+  dietaryType?: string;
+  spicyLevel?: number;
+  ingredients?: string[] | string;
+  allergens?: string[] | string;
+  servingSize?: string;
+  portionInfo?: string;
+  calories?: number;
+  nutrition?: NutritionInfo;
+  instructions?: string;
+  kitchenStation?: string;
+  priority?: string;
+  isPopular?: boolean;
+  isRecommended?: boolean;
+  isFeatured?: boolean;
+  isTodaysSpecial?: boolean;
+  displayOrder?: number;
+  startHour?: number;
+  endHour?: number;
+  availableDays?: number[];
+  stock?: number;
+  vendorId?: string;
+  createdBy?: string;
+  createdByName?: string;
+  createdAt?: number | string;
+  updatedBy?: string;
+  updatedByName?: string;
+  updatedAt?: number | string;
+}

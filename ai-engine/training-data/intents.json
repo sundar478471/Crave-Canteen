@@ -1,0 +1,59 @@
+{
+  "intents": [
+    {
+      "id": "FOOD_RECOMMENDATION",
+      "description": "User is looking for food suggestions or items matching budget/dietary constraints",
+      "keywords": ["eat", "recommend", "suggest", "hungry", "cheap", "budget", "under", "below", "less than", "affordable", "high protein", "spicy", "healthy", "vegetarian", "veg", "non-veg", "snack", "breakfast", "lunch", "dinner", "tiffin"]
+    },
+    {
+      "id": "MENU_SEARCH",
+      "description": "User wants to see specific menu items or categories",
+      "keywords": ["menu", "show", "search", "category", "list", "dosa", "samosa", "coffee", "tea", "noodles", "burger", "sandwich", "pizza", "biryani", "thali", "beverages", "dessert"]
+    },
+    {
+      "id": "ORDER_STATUS",
+      "description": "User wants to check current active order status",
+      "keywords": ["order", "status", "where is my food", "track", "ready", "preparing", "when will it be ready", "order status", "active order"]
+    },
+    {
+      "id": "REORDER",
+      "description": "User wants to repeat a previous order",
+      "keywords": ["reorder", "again", "repeat", "last order", "favorite", "usual"]
+    },
+    {
+      "id": "PRICE_QUERY",
+      "description": "User is asking about price or budget options",
+      "keywords": ["price", "cost", "how much", "rate", "cheap", "expensive", "rupees", "rs"]
+    },
+    {
+      "id": "NUTRITION_QUERY",
+      "description": "User is asking about calories or protein content",
+      "keywords": ["calories", "protein", "carbs", "fat", "nutrition", "diet", "healthy", "calories in", "protein content"]
+    },
+    {
+      "id": "WALLET_QUERY",
+      "description": "User is asking about wallet balance or top up",
+      "keywords": ["wallet", "balance", "money", "credit", "top up", "my wallet"]
+    },
+    {
+      "id": "REWARD_QUERY",
+      "description": "User is asking about reward points or discounts",
+      "keywords": ["reward", "points", "discount", "redeem", "cashback", "coins"]
+    },
+    {
+      "id": "TIME_SLOT_QUERY",
+      "description": "User is asking about operating hours or pickup slots",
+      "keywords": ["slot", "pickup time", "time slot", "open", "hours", "timing", "schedule"]
+    },
+    {
+      "id": "VENDOR_QUERY",
+      "description": "User is asking about canteen vendors or outlets",
+      "keywords": ["vendor", "canteen", "bakery", "juice bar", "coffee shop", "mess", "outlet"]
+    },
+    {
+      "id": "GENERAL_HELP",
+      "description": "User asks for general assistance or FAQ",
+      "keywords": ["help", "support", "how to use", "faq", "contact", "issue", "refund"]
+    }
+  ]
+}

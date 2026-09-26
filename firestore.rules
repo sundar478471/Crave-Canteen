@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return isAuthenticated() && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STAFF', 'KITCHEN_STAFF', 'CANTEEN_MANAGER', 'VENDOR_ADMIN', 'ADMIN', 'SUPER_ADMIN'])) ||
+        request.auth.token.email == "sundar48807@gmail.com"
+      );
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isOwner(userId) || isAdmin();
+    }
+
+    // Menu Availability & Items
+    match /menu/{itemId} {
+      allow read: if true;
+      allow write, delete: if isAdmin();
+    }
+
+    // Orders collection
+    match /orders/{orderId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // Ingredients Inventory
+    match /ingredients/{ingredientId} {
+      allow read: if isAuthenticated();
+      allow write, delete: if isAdmin();
+    }
+
+    // Stock Movements & Inventory Logs
+    match /stock_movements/{movementId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // System & App Notifications
+    match /notifications/{notifId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Metadata
+    match /metadata/{docId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

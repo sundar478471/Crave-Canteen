@@ -1,0 +1,60 @@
+{
+  "name": "cravecanteen---smart-canteen-hub",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "tsx backend/src/server.ts",
+    "build": "vite build --config frontend/vite.config.ts",
+    "start": "tsx backend/src/server.ts --prod",
+    "preview": "vite preview --config frontend/vite.config.ts",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx scripts/verify/run-tests.ts",
+    "verify": "tsx scripts/verify/verify-system.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^1.38.0",
+    "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "firebase": "^12.19.0",
+    "firebase-admin": "^14.5.0",
+    "html5-qrcode": "^2.3.8",
+    "jsqr": "^1.4.0",
+    "lucide-react": "^0.563.0",
+    "nodemailer": "^8.0.2",
+    "pdfkit": "^0.18.0",
+    "react": "^19.2.4",
+    "react-barcode": "^1.6.1",
+    "react-dom": "^19.2.4",
+    "react-qr-code": "^2.0.18",
+    "recharts": "^3.8.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.14.0",
+    "@types/nodemailer": "^7.0.11",
+    "@types/pdfkit": "^0.17.5",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.0.0",
+    "jest": "^29.7.0",
+    "tailwindcss": "^4.3.3",
+    "ts-jest": "^29.2.5",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "vite-plugin-pwa": "^1.2.0"
+  }
+}

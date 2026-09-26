@@ -1,0 +1,13 @@
+[
+  { "input": "what can I eat under 100", "intent": "FOOD_RECOMMENDATION", "entities": { "maxPrice": 100 } },
+  { "input": "food below 80 rupees", "intent": "FOOD_RECOMMENDATION", "entities": { "maxPrice": 80 } },
+  { "input": "show me cheap breakfast", "intent": "FOOD_RECOMMENDATION", "entities": { "category": "MORNING TIFFIN", "sort": "cheap" } },
+  { "input": "something high protein", "intent": "FOOD_RECOMMENDATION", "entities": { "highProtein": true } },
+  { "input": "vegetarian food available now", "intent": "FOOD_RECOMMENDATION", "entities": { "isVeg": true, "availableNow": true } },
+  { "input": "where is my order", "intent": "ORDER_STATUS", "entities": {} },
+  { "input": "track active order", "intent": "ORDER_STATUS", "entities": {} },
+  { "input": "reorder my last food", "intent": "REORDER", "entities": {} },
+  { "input": "what is my wallet balance", "intent": "WALLET_QUERY", "entities": {} },
+  { "input": "how many reward points do I have", "intent": "REWARD_QUERY", "entities": {} },
+  { "input": "show me juice bar menu", "intent": "VENDOR_QUERY", "entities": { "vendor": "Juice Bar" } }
+]

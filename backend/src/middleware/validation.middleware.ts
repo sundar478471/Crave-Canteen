@@ -1,0 +1,17 @@
+import { Request, Response, NextFunction } from 'express';
+
+export function validateRequiredFields(fields: string[]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const missing: string[] = [];
+    for (const field of fields) {
+      if (req.body[field] === undefined || req.body[field] === null) {
+        missing.push(field);
+      }
+    }
+    if (missing.length > 0) {
+      res.status(400).json({ error: `Missing required fields: ${missing.join(', ')}` });
+      return;
+    }
+    next();
+  };
+}

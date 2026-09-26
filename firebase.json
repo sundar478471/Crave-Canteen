@@ -1,0 +1,29 @@
+{
+  "auth": {
+    "authorizedDomains": [
+      "localhost",
+      "crave-canteen.firebaseapp.com",
+      "crave-canteen.web.app"
+    ],
+    "providers": {
+      "emailPassword": true
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "hosting": {
+    "public": "dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
