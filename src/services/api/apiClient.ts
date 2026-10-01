@@ -35,29 +35,23 @@ export interface FirestoreErrorInfo {
   };
 }
 
+const fallbackLogsSeen = new Set<string>();
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  };
-  if (errInfo.error.includes('client is offline') || errInfo.error.includes('insufficient permissions') || errInfo.error.includes('permission-denied') || !auth.currentUser) {
-    console.info(`[Local Fallback Mode] Firestore ${operationType} on ${path || 'resource'} fallback to localStore.`);
+  const errMsg = error instanceof Error ? error.message : String(error);
+  const isFallback = errMsg.includes('client is offline') || 
+                     errMsg.includes('insufficient permissions') || 
+                     errMsg.includes('permission-denied') || 
+                     !auth.currentUser;
+
+  if (isFallback) {
+    const logKey = `${operationType}:${path || 'resource'}`;
+    if (!fallbackLogsSeen.has(logKey)) {
+      fallbackLogsSeen.add(logKey);
+      console.debug(`[Local Fallback Mode] Firestore ${operationType} on ${path || 'resource'} fallback to localStore.`);
+    }
   } else {
-    console.warn('Firestore Operation Notice: ', JSON.stringify(errInfo));
+    console.warn('Firestore Operation Notice:', errMsg);
   }
 }
 

@@ -5,56 +5,44 @@ service cloud.firestore {
     function isAuthenticated() {
       return request.auth != null;
     }
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-    function isAdmin() {
-      return isAuthenticated() && (
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-          (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STAFF', 'KITCHEN_STAFF', 'CANTEEN_MANAGER', 'VENDOR_ADMIN', 'ADMIN', 'SUPER_ADMIN'])) ||
-        request.auth.token.email == "sundar48807@gmail.com"
-      );
-    }
 
-    // Users collection
+    // Users collection (Online sync for all roles)
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isOwner(userId) || isAdmin();
+      allow read, write: if true;
     }
 
-    // Menu Availability & Items
+    // Menu Items
     match /menu/{itemId} {
-      allow read: if true;
-      allow write, delete: if isAdmin();
+      allow read, write: if true;
     }
 
     // Orders collection
     match /orders/{orderId} {
-      allow read, create, update: if isAuthenticated();
-      allow delete: if isAdmin();
+      allow read, create, update, delete: if true;
     }
 
     // Ingredients Inventory
     match /ingredients/{ingredientId} {
-      allow read: if isAuthenticated();
-      allow write, delete: if isAdmin();
+      allow read, write: if true;
     }
 
     // Stock Movements & Inventory Logs
     match /stock_movements/{movementId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
     // System & App Notifications
     match /notifications/{notifId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
-    // Metadata
+    // Metadata & Settings
     match /metadata/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
+    }
+
+    match /settings/{docId} {
+      allow read, write: if true;
     }
   }
 }
