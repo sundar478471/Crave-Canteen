@@ -81,7 +81,7 @@ const App: React.FC = () => {
 
   // Subscribe to Menu and Orders when authenticated
   useEffect(() => {
-    if (!currentUser || !isAuthReady) return;
+    if (!currentUser?.id || !isAuthReady) return;
 
     const unsubscribeMenu = api.subscribeToMenu((menu) => {
       setMenuItems(menu);
@@ -95,15 +95,21 @@ const App: React.FC = () => {
       unsubscribeMenu();
       unsubscribeOrders();
     };
-  }, [currentUser, isAuthReady]);
+  }, [currentUser?.id, currentUser?.role, isAuthReady]);
 
   // Subscribe to real-time User record updates
   useEffect(() => {
-    if (!currentUser || !isAuthReady) return;
+    if (!currentUser?.id || !isAuthReady) return;
 
     const unsubscribeUser = api.subscribeToUser(currentUser.id, (user) => {
       if (user) {
-        setCurrentUser(user);
+        setCurrentUser(prev => {
+          if (!prev) return user;
+          if (prev.id === user.id && prev.updatedAt === user.updatedAt && prev.rewardPoints === user.rewardPoints && prev.walletBalance === user.walletBalance && prev.role === user.role && prev.status === user.status) {
+            return prev;
+          }
+          return user;
+        });
         try {
           localStorage.setItem('cravecanteen_user', JSON.stringify(user));
         } catch (e) {

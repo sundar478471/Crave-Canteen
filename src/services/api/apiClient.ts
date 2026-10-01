@@ -73,12 +73,32 @@ const LOCAL_KITCHEN_STATUS_KEY = 'cravecanteen_local_kitchen_status';
 const LOCAL_AUDIT_LOG_KEY = 'cravecanteen_local_audit_log';
 
 const menuListeners = new Set<(menu: FoodItem[]) => void>();
-const orderListeners = new Set<() => void>();
+const orderListenerMap = new Map<string, Set<(orders: Order[]) => void>>();
 const userListeners = new Map<string, Set<(user: User | null) => void>>();
 const ingredientListeners = new Set<(ingredients: RawIngredient[]) => void>();
 const movementListeners = new Set<(movements: StockMovement[]) => void>();
 const notificationListeners = new Set<(notifs: AppNotification[]) => void>();
 const kitchenStatusListeners = new Set<(status: 'Online' | 'Busy' | 'Offline') => void>();
+
+function notifyOrderListeners() {
+  orderListenerMap.forEach(set => {
+    set.forEach(cb => {
+      try {
+        const orders = localStore.getOrders();
+        cb(orders);
+      } catch (e) {
+        console.error(e);
+      }
+    });
+  });
+}
+
+let activeUnsubMenu: (() => void) | null = null;
+let activeUnsubIngredients: (() => void) | null = null;
+let activeUnsubMovements: (() => void) | null = null;
+let activeUnsubNotifs: (() => void) | null = null;
+const activeUnsubUserMap = new Map<string, () => void>();
+const activeUnsubOrdersMap = new Map<string, () => void>();
 
 export async function hashPassword(password: string): Promise<string> {
   if (!password) return '';
@@ -527,9 +547,7 @@ export const localStore = {
       });
     }
 
-    orderListeners.forEach(cb => {
-      try { cb(); } catch (e) { console.error(e); }
-    });
+    notifyOrderListeners();
 
     return finalOrder;
   },
@@ -571,9 +589,7 @@ export const localStore = {
       link: '/kitchen/orders'
     });
 
-    orderListeners.forEach(cb => {
-      try { cb(); } catch (e) { console.error(e); }
-    });
+    notifyOrderListeners();
 
     return updatedOrder;
   },
@@ -669,9 +685,7 @@ export const localStore = {
       } catch (e) {
         console.warn("LocalStore saveOrderStatus error:", e);
       }
-      orderListeners.forEach(cb => {
-        try { cb(); } catch (e) { console.error(e); }
-      });
+      notifyOrderListeners();
     }
   },
 
@@ -1188,26 +1202,40 @@ export const api = {
     if (!userListeners.has(userId)) {
       userListeners.set(userId, new Set());
     }
-    userListeners.get(userId)!.add(callback);
+    const listenerSet = userListeners.get(userId)!;
+    listenerSet.add(callback);
 
-    let unsubFirestore: (() => void) | null = null;
-    try {
-      const userRef = doc(db, USERS_COLLECTION, userId);
-      unsubFirestore = onSnapshot(userRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const user = docSnap.data();
-          callback(stripSensitiveFields(user));
-        }
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, `${USERS_COLLECTION}/${userId}`);
-      });
-    } catch (e) {
-      console.warn("Could not attach Firestore user listener:", e);
+    if (!activeUnsubUserMap.has(userId)) {
+      try {
+        const userRef = doc(db, USERS_COLLECTION, userId);
+        const unsub = onSnapshot(userRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const user = docSnap.data();
+            const stripped = stripSensitiveFields(user);
+            userListeners.get(userId)?.forEach(cb => cb(stripped));
+          }
+        }, (error) => {
+          handleFirestoreError(error, OperationType.GET, `${USERS_COLLECTION}/${userId}`);
+        });
+        activeUnsubUserMap.set(userId, unsub);
+      } catch (e) {
+        console.warn("Could not attach Firestore user listener:", e);
+      }
     }
 
     return () => {
-      userListeners.get(userId)?.delete(callback);
-      if (unsubFirestore) unsubFirestore();
+      const set = userListeners.get(userId);
+      if (set) {
+        set.delete(callback);
+        if (set.size === 0) {
+          userListeners.delete(userId);
+          const activeUnsub = activeUnsubUserMap.get(userId);
+          if (activeUnsub) {
+            activeUnsub();
+            activeUnsubUserMap.delete(userId);
+          }
+        }
+      }
     };
   },
 
@@ -1331,25 +1359,29 @@ export const api = {
     callback(localStore.getMenu());
     menuListeners.add(callback);
 
-    let unsubFirestore: (() => void) | null = null;
-    try {
-      const q = query(collection(db, MENU_COLLECTION));
-      unsubFirestore = onSnapshot(q, (snapshot) => {
-        if (!snapshot.empty) {
-          const menu = snapshot.docs.map(docSnap => docSnap.data() as FoodItem);
-          localStore.updateMenu(menu, false);
-          callback(menu);
-        }
-      }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, MENU_COLLECTION);
-      });
-    } catch (e) {
-      console.warn("Could not attach Firestore menu listener:", e);
+    if (!activeUnsubMenu) {
+      try {
+        const q = query(collection(db, MENU_COLLECTION));
+        activeUnsubMenu = onSnapshot(q, (snapshot) => {
+          if (!snapshot.empty) {
+            const menu = snapshot.docs.map(docSnap => docSnap.data() as FoodItem);
+            localStore.updateMenu(menu, false);
+            menuListeners.forEach(cb => cb(menu));
+          }
+        }, (error) => {
+          handleFirestoreError(error, OperationType.LIST, MENU_COLLECTION);
+        });
+      } catch (e) {
+        console.warn("Could not attach Firestore menu listener:", e);
+      }
     }
 
     return () => {
       menuListeners.delete(callback);
-      if (unsubFirestore) unsubFirestore();
+      if (menuListeners.size === 0 && activeUnsubMenu) {
+        activeUnsubMenu();
+        activeUnsubMenu = null;
+      }
     };
   },
 
@@ -1401,37 +1433,51 @@ export const api = {
   subscribeToOrders(userId: string | undefined, role: string | undefined, callback: (orders: Order[]) => void): () => void {
     callback(localStore.getOrders(userId, role));
 
-    const localListener = () => {
-      callback(localStore.getOrders(userId, role));
-    };
-    orderListeners.add(localListener);
+    const key = `${role || 'all'}_${userId || 'all'}`;
+    if (!orderListenerMap.has(key)) {
+      orderListenerMap.set(key, new Set());
+    }
+    const listenerSet = orderListenerMap.get(key)!;
+    listenerSet.add(callback);
 
-    let unsubFirestore: (() => void) | null = null;
-    try {
-      let q;
-      if (role === 'STAFF') {
-        q = query(collection(db, ORDERS_COLLECTION), orderBy('createdAt', 'desc'));
-      } else if (userId) {
-        q = query(collection(db, ORDERS_COLLECTION), where('userId', '==', userId));
+    if (!activeUnsubOrdersMap.has(key)) {
+      try {
+        let q;
+        if (role === 'STAFF') {
+          q = query(collection(db, ORDERS_COLLECTION), orderBy('createdAt', 'desc'));
+        } else if (userId) {
+          q = query(collection(db, ORDERS_COLLECTION), where('userId', '==', userId));
+        }
+        if (q) {
+          const unsub = onSnapshot(q, (snapshot) => {
+            const orders = snapshot.docs.map(docSnap => docSnap.data() as Order);
+            if (role !== 'STAFF') {
+              orders.sort((a, b) => b.createdAt - a.createdAt);
+            }
+            orderListenerMap.get(key)?.forEach(cb => cb(orders));
+          }, (error) => {
+            handleFirestoreError(error, OperationType.LIST, ORDERS_COLLECTION);
+          });
+          activeUnsubOrdersMap.set(key, unsub);
+        }
+      } catch (e) {
+        console.warn("Could not attach Firestore orders listener:", e);
       }
-      if (q) {
-        unsubFirestore = onSnapshot(q, (snapshot) => {
-          const orders = snapshot.docs.map(docSnap => docSnap.data() as Order);
-          if (role !== 'STAFF') {
-            orders.sort((a, b) => b.createdAt - a.createdAt);
-          }
-          callback(orders);
-        }, (error) => {
-          handleFirestoreError(error, OperationType.LIST, ORDERS_COLLECTION);
-        });
-      }
-    } catch (e) {
-      console.warn("Could not attach Firestore orders listener:", e);
     }
 
     return () => {
-      orderListeners.delete(localListener);
-      if (unsubFirestore) unsubFirestore();
+      const set = orderListenerMap.get(key);
+      if (set) {
+        set.delete(callback);
+        if (set.size === 0) {
+          orderListenerMap.delete(key);
+          const activeUnsub = activeUnsubOrdersMap.get(key);
+          if (activeUnsub) {
+            activeUnsub();
+            activeUnsubOrdersMap.delete(key);
+          }
+        }
+      }
     };
   },
 
@@ -1504,25 +1550,29 @@ export const api = {
     callback(localStore.getIngredients());
     ingredientListeners.add(callback);
 
-    let unsubFirestore: (() => void) | null = null;
-    try {
-      const q = query(collection(db, INGREDIENTS_COLLECTION));
-      unsubFirestore = onSnapshot(q, (snapshot) => {
-        if (!snapshot.empty) {
-          const items = snapshot.docs.map(docSnap => docSnap.data() as RawIngredient);
-          localStore.saveIngredients(items);
-          callback(items);
-        }
-      }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, INGREDIENTS_COLLECTION);
-      });
-    } catch (e) {
-      console.warn("Could not attach Firestore ingredients listener:", e);
+    if (!activeUnsubIngredients) {
+      try {
+        const q = query(collection(db, INGREDIENTS_COLLECTION));
+        activeUnsubIngredients = onSnapshot(q, (snapshot) => {
+          if (!snapshot.empty) {
+            const items = snapshot.docs.map(docSnap => docSnap.data() as RawIngredient);
+            localStore.saveIngredients(items);
+            ingredientListeners.forEach(cb => cb(items));
+          }
+        }, (error) => {
+          handleFirestoreError(error, OperationType.LIST, INGREDIENTS_COLLECTION);
+        });
+      } catch (e) {
+        console.warn("Could not attach Firestore ingredients listener:", e);
+      }
     }
 
     return () => {
       ingredientListeners.delete(callback);
-      if (unsubFirestore) unsubFirestore();
+      if (ingredientListeners.size === 0 && activeUnsubIngredients) {
+        activeUnsubIngredients();
+        activeUnsubIngredients = null;
+      }
     };
   },
 
@@ -1573,22 +1623,26 @@ export const api = {
     callback(localStore.getStockMovements());
     movementListeners.add(callback);
 
-    let unsubFirestore: (() => void) | null = null;
-    try {
-      const q = query(collection(db, MOVEMENTS_COLLECTION), orderBy('timestamp', 'desc'));
-      unsubFirestore = onSnapshot(q, (snapshot) => {
-        const mvs = snapshot.docs.map(docSnap => docSnap.data() as StockMovement);
-        callback(mvs);
-      }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, MOVEMENTS_COLLECTION);
-      });
-    } catch (e) {
-      console.warn("Could not attach Firestore stock movements listener:", e);
+    if (!activeUnsubMovements) {
+      try {
+        const q = query(collection(db, MOVEMENTS_COLLECTION), orderBy('timestamp', 'desc'));
+        activeUnsubMovements = onSnapshot(q, (snapshot) => {
+          const mvs = snapshot.docs.map(docSnap => docSnap.data() as StockMovement);
+          movementListeners.forEach(cb => cb(mvs));
+        }, (error) => {
+          handleFirestoreError(error, OperationType.LIST, MOVEMENTS_COLLECTION);
+        });
+      } catch (e) {
+        console.warn("Could not attach Firestore stock movements listener:", e);
+      }
     }
 
     return () => {
       movementListeners.delete(callback);
-      if (unsubFirestore) unsubFirestore();
+      if (movementListeners.size === 0 && activeUnsubMovements) {
+        activeUnsubMovements();
+        activeUnsubMovements = null;
+      }
     };
   },
 
@@ -1619,22 +1673,26 @@ export const api = {
     callback(localStore.getKitchenNotifications());
     notificationListeners.add(callback);
 
-    let unsubFirestore: (() => void) | null = null;
-    try {
-      const q = query(collection(db, NOTIFICATIONS_COLLECTION), orderBy('timestamp', 'desc'));
-      unsubFirestore = onSnapshot(q, (snapshot) => {
-        const notifs = snapshot.docs.map(docSnap => docSnap.data() as AppNotification);
-        callback(notifs);
-      }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, NOTIFICATIONS_COLLECTION);
-      });
-    } catch (e) {
-      console.warn("Could not attach Firestore notifications listener:", e);
+    if (!activeUnsubNotifs) {
+      try {
+        const q = query(collection(db, NOTIFICATIONS_COLLECTION), orderBy('timestamp', 'desc'));
+        activeUnsubNotifs = onSnapshot(q, (snapshot) => {
+          const notifs = snapshot.docs.map(docSnap => docSnap.data() as AppNotification);
+          notificationListeners.forEach(cb => cb(notifs));
+        }, (error) => {
+          handleFirestoreError(error, OperationType.LIST, NOTIFICATIONS_COLLECTION);
+        });
+      } catch (e) {
+        console.warn("Could not attach Firestore notifications listener:", e);
+      }
     }
 
     return () => {
       notificationListeners.delete(callback);
-      if (unsubFirestore) unsubFirestore();
+      if (notificationListeners.size === 0 && activeUnsubNotifs) {
+        activeUnsubNotifs();
+        activeUnsubNotifs = null;
+      }
     };
   },
 

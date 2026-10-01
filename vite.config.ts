@@ -22,6 +22,7 @@ export default defineConfig(({ mode }) => {
           includeAssets: ['icon.svg'],
           workbox: {
             maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+            navigateFallbackDenylist: [/^\/api/, /google\.firestore/, /firestore\.googleapis\.com/]
           },
           manifest: {
             name: 'CraveCanteen Hub',

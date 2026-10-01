@@ -25,11 +25,16 @@ async function runUserManagementVerification() {
     status: 'ACTIVE'
   };
 
+  const testRunId = Date.now();
+  const studentEmail = `test.student.${testRunId}@campus.edu`;
+  const facultyEmail = `test.faculty.${testRunId}@campus.edu`;
+  const kitchenEmail = `test.kitchen.${testRunId}@cravecanteen.com`;
+
   const studentPayload: User & { password?: string } = {
-    id: 'temp-student',
+    id: `temp-student-${testRunId}`,
     name: 'Test Student',
-    email: 'test.student@campus.edu',
-    username: 'test_student',
+    email: studentEmail,
+    username: `test_student_${testRunId}`,
     phoneNumber: '+919999000001',
     role: UserRole.STUDENT,
     department: 'Computer Science',
@@ -39,10 +44,10 @@ async function runUserManagementVerification() {
   };
 
   const facultyPayload: User & { password?: string } = {
-    id: 'temp-faculty',
+    id: `temp-faculty-${testRunId}`,
     name: 'Dr. Test Faculty',
-    email: 'test.faculty@campus.edu',
-    username: 'test_faculty',
+    email: facultyEmail,
+    username: `test_faculty_${testRunId}`,
     phoneNumber: '+919999000002',
     role: UserRole.FACULTY,
     department: 'Mechanical Engineering',
@@ -52,10 +57,10 @@ async function runUserManagementVerification() {
   };
 
   const kitchenPayload: User & { password?: string } = {
-    id: 'temp-kitchen',
+    id: `temp-kitchen-${testRunId}`,
     name: 'Test Kitchen Chef',
-    email: 'test.kitchen@cravecanteen.com',
-    username: 'test_kitchen_chef',
+    email: kitchenEmail,
+    username: `test_kitchen_chef_${testRunId}`,
     phoneNumber: '+919999000003',
     role: UserRole.KITCHEN,
     kitchenBranch: 'Main Kitchen - Station 2',
@@ -95,7 +100,7 @@ async function runUserManagementVerification() {
   // 4. Login as Student
   let loggedStudent: User | null = null;
   try {
-    loggedStudent = await api.loginUser('test.student@campus.edu', 'password123');
+    loggedStudent = await api.loginUser(studentEmail, 'password123');
     assert(loggedStudent !== null && (loggedStudent.role === UserRole.STUDENT || loggedStudent.role === UserRole.CUSTOMER), "4. Login as Student with valid credentials");
   } catch (e: any) {
     assert(false, `4. Login as Student failed: ${e?.message}`);
@@ -104,7 +109,7 @@ async function runUserManagementVerification() {
   // 5. Login as Faculty
   let loggedFaculty: User | null = null;
   try {
-    loggedFaculty = await api.loginUser('test.faculty@campus.edu', 'password123');
+    loggedFaculty = await api.loginUser(facultyEmail, 'password123');
     assert(loggedFaculty !== null && loggedFaculty.role === UserRole.FACULTY, "5. Login as Faculty with valid credentials");
   } catch (e: any) {
     assert(false, `5. Login as Faculty failed: ${e?.message}`);
@@ -113,7 +118,7 @@ async function runUserManagementVerification() {
   // 6. Login as Kitchen
   let loggedKitchen: User | null = null;
   try {
-    loggedKitchen = await api.loginUser('test.kitchen@cravecanteen.com', 'password123');
+    loggedKitchen = await api.loginUser(kitchenEmail, 'password123');
     assert(loggedKitchen !== null && loggedKitchen.role === UserRole.KITCHEN, "6. Login as Kitchen with valid credentials");
   } catch (e: any) {
     assert(false, `6. Login as Kitchen failed: ${e?.message}`);
@@ -127,9 +132,9 @@ async function runUserManagementVerification() {
   // 8. Verify Admin can manage all three
   try {
     const allUsers = await api.getAllUsers();
-    const hasStudent = allUsers.some(u => u.email === 'test.student@campus.edu');
-    const hasFaculty = allUsers.some(u => u.email === 'test.faculty@campus.edu');
-    const hasKitchen = allUsers.some(u => u.email === 'test.kitchen@cravecanteen.com');
+    const hasStudent = allUsers.some(u => u.email === studentEmail);
+    const hasFaculty = allUsers.some(u => u.email === facultyEmail);
+    const hasKitchen = allUsers.some(u => u.email === kitchenEmail);
     assert(hasStudent && hasFaculty && hasKitchen, "8. Admin user list contains Student, Faculty, and Kitchen accounts");
   } catch (e: any) {
     assert(false, `8. Admin user list management check failed: ${e?.message}`);
@@ -149,7 +154,7 @@ async function runUserManagementVerification() {
       await api.toggleUserStatus(createdStudent.id, 'INACTIVE', adminUser);
       let inactiveLoginAttempt: User | null = null;
       try {
-        inactiveLoginAttempt = await api.loginUser('test.student@campus.edu', 'password123');
+        inactiveLoginAttempt = await api.loginUser(studentEmail, 'password123');
         assert(false, "10. Inactive user was able to log in");
       } catch (inactiveErr: any) {
         assert(inactiveErr?.message?.includes('inactive'), "10. Inactive user login correctly blocked");
