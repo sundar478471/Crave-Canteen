@@ -44,6 +44,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const [userToEdit, setUserToEdit] = useState<User | null>(null);
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [userToResetPass, setUserToResetPass] = useState<User | null>(null);
+  const [resetPasswordVal, setResetPasswordVal] = useState<string>('');
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState<string>('');
+  const [isResettingPass, setIsResettingPass] = useState<boolean>(false);
 
   // Form State for Add / Edit
   const [activeFormTab, setActiveFormTab] = useState<'personal' | 'org' | 'account' | 'permissions'>('personal');
@@ -60,6 +64,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const [department, setDepartment] = useState<string>('Computer Science');
   const [designation, setDesignation] = useState<string>('');
   const [academicYear, setAcademicYear] = useState<string>('');
+  const [yearClass, setYearClass] = useState<string>('');
+  const [kitchenBranch, setKitchenBranch] = useState<string>('Main Campus Canteen - Station 1');
   const [joiningDate, setJoiningDate] = useState<string>('');
   const [address, setAddress] = useState<string>('');
   const [emergencyContact, setEmergencyContact] = useState<string>('');
@@ -74,6 +80,42 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  const handleToggleActivateDeactivate = async (u: User) => {
+    const newStatus = (u.status || 'ACTIVE') === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    try {
+      await api.toggleUserStatus(u.id, newStatus, currentUser);
+      triggerToastSuccess(`User "${u.name}" is now ${newStatus}.`);
+      await fetchUsers();
+    } catch (err: any) {
+      triggerToastError(err?.message || 'Failed to update account status.');
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userToResetPass) return;
+    if (!resetPasswordVal || resetPasswordVal.length < 6) {
+      triggerToastError("Password must be at least 6 characters long.");
+      return;
+    }
+    if (resetPasswordVal !== resetPasswordConfirm) {
+      triggerToastError("Passwords do not match.");
+      return;
+    }
+    setIsResettingPass(true);
+    try {
+      await api.resetUserPassword(userToResetPass.id, resetPasswordVal, currentUser);
+      triggerToastSuccess(`Password for "${userToResetPass.name}" updated successfully.`);
+      setUserToResetPass(null);
+      setResetPasswordVal('');
+      setResetPasswordConfirm('');
+    } catch (err: any) {
+      triggerToastError(err?.message || 'Failed to reset password.');
+    } finally {
+      setIsResettingPass(false);
+    }
+  };
 
   const isExecutingAdmin = useMemo(() => {
     if (!currentUser) return true;
@@ -139,6 +181,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     setDepartment('Computer Science');
     setDesignation('');
     setAcademicYear('3rd Year / Sec A');
+    setYearClass('3rd Year / Sec A');
+    setKitchenBranch('Main Campus Canteen - Station 1');
     setJoiningDate(new Date().toISOString().split('T')[0]);
     setAddress('');
     setEmergencyContact('');
@@ -167,6 +211,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     setStudentId(u.studentId || u.rollNumber || '');
     setDepartment(u.department || 'Computer Science');
     setDesignation(u.designation || '');
+    setYearClass(u.yearClass || (u as any).academicYear || '');
+    setKitchenBranch(u.kitchenBranch || u.kitchenId || 'Main Campus Canteen - Station 1');
     setJoiningDate(u.joiningDate || '');
     setAddress(u.address || '');
     setEmergencyContact(u.emergencyContact || '');
@@ -293,6 +339,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         studentId: studentId.trim(),
         rollNumber: studentId.trim(),
         department: department,
+        yearClass: yearClass.trim() || academicYear.trim(),
+        kitchenId: kitchenBranch.trim(),
+        kitchenBranch: kitchenBranch.trim(),
         designation: designation.trim() || (role === 'KITCHEN' ? 'Kitchen Staff' : role === 'FACULTY' ? 'Faculty Member' : 'Student'),
         joiningDate: joiningDate,
         address: address.trim(),
@@ -648,7 +697,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       </div>
                     </td>
 
-                    {/* Actions Column (Eye View, Pencil Edit, Trash Delete) */}
+                    {/* Actions Column (View, Edit, Activate/Deactivate, Reset Password, Delete) */}
                     <td className="p-4 text-right space-x-1">
                       {/* EYE VIEW BUTTON */}
                       <button
@@ -666,6 +715,32 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                         title="Edit User Profile"
                       >
                         <Edit3 className="w-4 h-4" />
+                      </button>
+
+                      {/* ACTIVATE / DEACTIVATE BUTTON */}
+                      <button
+                        onClick={() => handleToggleActivateDeactivate(userItem)}
+                        className={`p-2 rounded-xl transition-colors inline-flex items-center justify-center cursor-pointer ${
+                          (userItem.status || 'ACTIVE') === 'ACTIVE'
+                            ? 'text-emerald-600 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+                            : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                        }`}
+                        title={(userItem.status || 'ACTIVE') === 'ACTIVE' ? 'Deactivate Account' : 'Activate Account'}
+                      >
+                        <ShieldAlert className="w-4 h-4" />
+                      </button>
+
+                      {/* RESET PASSWORD BUTTON */}
+                      <button
+                        onClick={() => {
+                          setUserToResetPass(userItem);
+                          setResetPasswordVal('');
+                          setResetPasswordConfirm('');
+                        }}
+                        className="p-2 rounded-xl text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 transition-colors inline-flex items-center justify-center cursor-pointer"
+                        title="Reset User Password"
+                      >
+                        <KeyRound className="w-4 h-4" />
                       </button>
 
                       {/* TRASH DELETE BUTTON */}
@@ -1090,12 +1165,12 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   {/* Dynamic Role Banner */}
                   <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
                     <span>Selected Role: <strong className="text-orange-600">{role || 'None Selected'}</strong></span>
-                    {role && <span className="text-[10px] text-slate-400 font-mono">Role-specific fields active below</span>}
+                    {role && <span className="text-[10px] text-slate-400 font-mono">Showing {role} specific form fields</span>}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     
-                    {/* DYNAMIC FIELD 1: STUDENT ID vs EMPLOYEE ID */}
+                    {/* ROLE SPECIFIC FIELD 1: ID NUMBER */}
                     <div>
                       <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
                         {role === 'STUDENT' ? 'Student ID / Roll Number *' : role === 'FACULTY' ? 'Faculty Employee ID *' : 'Kitchen Staff Employee ID *'}
@@ -1112,35 +1187,68 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       />
                     </div>
 
-                    {/* DYNAMIC FIELD 2: DEPARTMENT / SECTION */}
-                    <div>
-                      <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                        {role === 'KITCHEN' ? 'Kitchen Station / Section' : 'Academic Department'}
-                      </label>
-                      <select
-                        value={department}
-                        onChange={(e) => setDepartment(e.target.value)}
-                        className="w-full px-3.5 py-2.5 text-xs font-medium rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:border-orange-500 outline-none"
-                      >
-                        {DEPARTMENTS.map(d => (
-                          <option key={d} value={d}>{d}</option>
-                        ))}
-                      </select>
-                    </div>
+                    {/* ROLE SPECIFIC FIELD 2: DEPARTMENT OR KITCHEN/BRANCH */}
+                    {role === 'KITCHEN' ? (
+                      <div>
+                        <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                          Kitchen / Branch Location *
+                        </label>
+                        <input
+                          type="text"
+                          value={kitchenBranch}
+                          onChange={(e) => setKitchenBranch(e.target.value)}
+                          placeholder="e.g. Main Campus Canteen - Station 1"
+                          className="w-full px-3.5 py-2.5 text-xs font-medium rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:border-orange-500 outline-none"
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                          Academic Department *
+                        </label>
+                        <select
+                          value={department}
+                          onChange={(e) => setDepartment(e.target.value)}
+                          className="w-full px-3.5 py-2.5 text-xs font-medium rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:border-orange-500 outline-none"
+                        >
+                          {DEPARTMENTS.map(d => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
-                    {/* DYNAMIC FIELD 3: DESIGNATION */}
-                    <div>
-                      <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                        {role === 'STUDENT' ? 'Academic Year / Section' : role === 'FACULTY' ? 'Faculty Designation' : 'Kitchen Role Designation'}
-                      </label>
-                      <input
-                        type="text"
-                        value={designation}
-                        onChange={(e) => setDesignation(e.target.value)}
-                        placeholder={role === 'STUDENT' ? 'e.g. 3rd Year / B.Tech CSE' : role === 'FACULTY' ? 'e.g. Senior Professor / HOD' : 'e.g. Head Chef / Counter Executive'}
-                        className="w-full px-3.5 py-2.5 text-xs font-medium rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:border-orange-500 outline-none"
-                      />
-                    </div>
+                    {/* ROLE SPECIFIC FIELD 3: YEAR/CLASS OR DESIGNATION */}
+                    {role === 'STUDENT' ? (
+                      <div>
+                        <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                          Year / Class Section *
+                        </label>
+                        <input
+                          type="text"
+                          value={yearClass}
+                          onChange={(e) => {
+                            setYearClass(e.target.value);
+                            setAcademicYear(e.target.value);
+                          }}
+                          placeholder="e.g. 3rd Year / Sec A"
+                          className="w-full px-3.5 py-2.5 text-xs font-medium rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:border-orange-500 outline-none"
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                          {role === 'FACULTY' ? 'Faculty Designation' : 'Kitchen Role / Station Designation'}
+                        </label>
+                        <input
+                          type="text"
+                          value={designation}
+                          onChange={(e) => setDesignation(e.target.value)}
+                          placeholder={role === 'FACULTY' ? 'e.g. Senior Professor / HOD' : 'e.g. Head Chef / Counter Executive'}
+                          className="w-full px-3.5 py-2.5 text-xs font-medium rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:border-orange-500 outline-none"
+                        />
+                      </div>
+                    )}
 
                     {/* Joining Date */}
                     <div>
@@ -1421,6 +1529,85 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 Delete Account
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. RESET PASSWORD MODAL FOR ADMIN */}
+      {userToResetPass && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 rounded-2xl bg-purple-500/10 text-purple-600">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Reset User Password</h3>
+                  <p className="text-xs font-semibold text-slate-500">Account: <strong>{userToResetPass.name}</strong></p>
+                </div>
+              </div>
+              <button
+                onClick={() => setUserToResetPass(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleResetPasswordSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                  New Password *
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={resetPasswordVal}
+                  onChange={(e) => setResetPasswordVal(e.target.value)}
+                  placeholder="Min. 6 characters"
+                  className="w-full px-3.5 py-2.5 text-xs font-medium rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:border-purple-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                  Confirm New Password *
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={resetPasswordConfirm}
+                  onChange={(e) => setResetPasswordConfirm(e.target.value)}
+                  placeholder="Re-enter password"
+                  className="w-full px-3.5 py-2.5 text-xs font-medium rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:border-purple-500 outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setUserToResetPass(null)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isResettingPass}
+                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-extrabold shadow-md shadow-purple-500/20 cursor-pointer disabled:opacity-50 flex items-center space-x-2"
+                >
+                  {isResettingPass ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Resetting...</span>
+                    </>
+                  ) : (
+                    <span>Reset Password</span>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

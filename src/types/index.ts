@@ -155,6 +155,10 @@ export interface User {
   address?: string;
   emergencyContact?: string;
   hostelBlock?: string;
+  yearClass?: string;
+  kitchenId?: string;
+  kitchenBranch?: string;
+  passwordHash?: string;
 
   // Account & Authorization
   accessLevel?: 'Standard' | 'Elevated' | 'Supervisor' | 'Full Admin' | string;

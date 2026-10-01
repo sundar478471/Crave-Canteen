@@ -86,6 +86,44 @@ const movementListeners = new Set<(movements: StockMovement[]) => void>();
 const notificationListeners = new Set<(notifs: AppNotification[]) => void>();
 const kitchenStatusListeners = new Set<(status: 'Online' | 'Busy' | 'Offline') => void>();
 
+export async function hashPassword(password: string): Promise<string> {
+  if (!password) return '';
+  const salted = password + '_cravecanteen_secure_salt_2026';
+  const encoder = new TextEncoder();
+  const data = encoder.encode(salted);
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  } else {
+    let hash = 0;
+    for (let i = 0; i < salted.length; i++) {
+      const char = salted.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash |= 0;
+    }
+    return 'h_' + Math.abs(hash).toString(16);
+  }
+}
+
+export async function verifyPassword(inputPassword: string, user: any): Promise<boolean> {
+  if (!inputPassword || !user) return false;
+  if (user.passwordHash) {
+    const inputHash = await hashPassword(inputPassword);
+    return inputHash === user.passwordHash;
+  }
+  if (user.password) {
+    return inputPassword === user.password;
+  }
+  return false;
+}
+
+export function stripSensitiveFields(user: any): User {
+  if (!user) return user;
+  const { password, passwordHash, ...rest } = user;
+  return rest as User;
+}
+
 const DEFAULT_INGREDIENTS: RawIngredient[] = [
   { id: 'ing-1', name: 'Tomato', unit: 'kg', currentStock: 5, minThreshold: 10, unitCost: 35, category: 'Vegetables' },
   { id: 'ing-2', name: 'Onion', unit: 'kg', currentStock: 18, minThreshold: 15, unitCost: 30, category: 'Vegetables' },
@@ -150,10 +188,30 @@ const DEFAULT_USERS: (User & { password?: string })[] = [
   }
 ];
 
+class MemoryStorage {
+  private store = new Map<string, string>();
+  getItem(key: string): string | null {
+    return this.store.get(key) || null;
+  }
+  setItem(key: string, value: string): void {
+    this.store.set(key, value);
+  }
+  removeItem(key: string): void {
+    this.store.delete(key);
+  }
+  clear(): void {
+    this.store.clear();
+  }
+}
+
+const safeStorage = (typeof window !== 'undefined' && window.localStorage)
+  ? window.localStorage
+  : ((globalThis as any).localStorage || new MemoryStorage());
+
 export const localStore = {
   getUsers(): (User & { password?: string })[] {
     try {
-      const data = localStorage.getItem(LOCAL_USERS_KEY);
+      const data = safeStorage.getItem(LOCAL_USERS_KEY);
       if (data) {
         let parsed: (User & { password?: string })[] = JSON.parse(data);
         // Ensure walletBalance is initialized to 0 if undefined
@@ -166,14 +224,14 @@ export const localStore = {
           }
         });
         if (updated) {
-          localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(parsed));
+          safeStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(parsed));
         }
         return parsed;
       }
     } catch (e) {
       console.warn("LocalStore getUsers parse error:", e);
     }
-    localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(DEFAULT_USERS));
+    safeStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(DEFAULT_USERS));
     return DEFAULT_USERS;
   },
 
@@ -181,13 +239,12 @@ export const localStore = {
     const users = this.getUsers();
     const found = users.find(u => u.id === userId);
     if (found) {
-      const { password: _, ...rest } = found;
-      return rest as User;
+      return stripSensitiveFields(found);
     }
     return null;
   },
 
-  saveUser(user: User & { password?: string }): User {
+  saveUser(user: User & { password?: string; passwordHash?: string }): User {
     const users = this.getUsers();
     const index = users.findIndex(u => u.id === user.id || (user.email && u.email.toLowerCase() === user.email.toLowerCase()));
     if (index >= 0) {
@@ -196,13 +253,12 @@ export const localStore = {
       users.push(user);
     }
     try {
-      localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
+      safeStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
     } catch (e) {
       console.warn("LocalStore saveUser storage error:", e);
     }
 
-    const { password: _, ...rest } = user;
-    const cleanUser = rest as User;
+    const cleanUser = stripSensitiveFields(user);
     const userSet = userListeners.get(user.id);
     if (userSet) {
       userSet.forEach(cb => {
@@ -219,23 +275,33 @@ export const localStore = {
 
     const found = users.find(u => {
       const emailMatches = u.email && u.email.toLowerCase() === cleanId;
+      const usernameMatches = u.username && u.username.toLowerCase() === cleanId;
       const phoneClean = u.phoneNumber ? u.phoneNumber.replace(/\D/g, '') : '';
       const phoneMatches = phoneClean && (phoneClean === digitsOnly || (digitsOnly.length >= 10 && phoneClean.endsWith(digitsOnly.slice(-10))));
-      return emailMatches || phoneMatches;
+      return emailMatches || usernameMatches || phoneMatches;
     });
 
     if (!found) return null;
-    if (password && found.password && found.password !== password) {
-      return null;
+
+    const userStatus = (found.status || 'ACTIVE').toUpperCase();
+    if (userStatus === 'INACTIVE' || userStatus === 'SUSPENDED') {
+      throw new Error("Your account is currently inactive. Please contact system administrator.");
     }
 
-    const { password: _, ...rest } = found;
-    return rest as User;
+    if (password) {
+      if (found.passwordHash) {
+        // Hash will be checked asynchronously in api.loginUser if needed
+      } else if (found.password && found.password !== password) {
+        return null;
+      }
+    }
+
+    return stripSensitiveFields(found);
   },
 
   getMenu(): FoodItem[] {
     try {
-      const data = localStorage.getItem(LOCAL_MENU_KEY);
+      const data = safeStorage.getItem(LOCAL_MENU_KEY);
       if (data) {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -249,7 +315,7 @@ export const localStore = {
           });
           if (updated) {
             try {
-              localStorage.setItem(LOCAL_MENU_KEY, JSON.stringify(parsed));
+              safeStorage.setItem(LOCAL_MENU_KEY, JSON.stringify(parsed));
             } catch (err) {
               console.warn("Error updating merged menu to localStorage:", err);
             }
@@ -261,7 +327,7 @@ export const localStore = {
       console.warn("LocalStore getMenu parse error:", e);
     }
     try {
-      localStorage.setItem(LOCAL_MENU_KEY, JSON.stringify(INITIAL_MENU_ITEMS));
+      safeStorage.setItem(LOCAL_MENU_KEY, JSON.stringify(INITIAL_MENU_ITEMS));
     } catch (e) {
       console.warn("LocalStore getMenu store error:", e);
     }
@@ -283,7 +349,7 @@ export const localStore = {
       };
     });
     try {
-      localStorage.setItem(LOCAL_MENU_KEY, JSON.stringify(normalizedMenu));
+      safeStorage.setItem(LOCAL_MENU_KEY, JSON.stringify(normalizedMenu));
     } catch (e) {
       console.warn("LocalStore updateMenu error:", e);
     }
@@ -297,7 +363,7 @@ export const localStore = {
   getOrders(userId?: string, role?: string): Order[] {
     let orders: Order[] = [];
     try {
-      const data = localStorage.getItem(LOCAL_ORDERS_KEY);
+      const data = safeStorage.getItem(LOCAL_ORDERS_KEY);
       if (data) {
         orders = JSON.parse(data);
       }
@@ -316,7 +382,7 @@ export const localStore = {
   getNextOrderId(): number {
     let counter = 101;
     try {
-      const data = localStorage.getItem(LOCAL_COUNTER_KEY);
+      const data = safeStorage.getItem(LOCAL_COUNTER_KEY);
       if (data) {
         counter = parseInt(data, 10) || 101;
       }
@@ -329,7 +395,7 @@ export const localStore = {
   createOrder(order: Omit<Order, 'id'> & { id?: string }): Order {
     let orders: Order[] = [];
     try {
-      const data = localStorage.getItem(LOCAL_ORDERS_KEY);
+      const data = safeStorage.getItem(LOCAL_ORDERS_KEY);
       if (data) {
         orders = JSON.parse(data);
       }
@@ -378,7 +444,7 @@ export const localStore = {
 
     const nextId = this.getNextOrderId();
     try {
-      localStorage.setItem(LOCAL_COUNTER_KEY, String(nextId + 1));
+      safeStorage.setItem(LOCAL_COUNTER_KEY, String(nextId + 1));
     } catch (e) {
       console.warn("LocalStore setCounter error:", e);
     }
@@ -394,7 +460,7 @@ export const localStore = {
 
     orders.unshift(finalOrder);
     try {
-      localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(orders));
+      safeStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(orders));
     } catch (e) {
       console.warn("LocalStore saveOrders error:", e);
     }
@@ -477,7 +543,7 @@ export const localStore = {
   confirmCounterCashPayment(orderId: string, counterStaffName: string = 'POS Counter Staff'): Order {
     let orders: Order[] = [];
     try {
-      const data = localStorage.getItem(LOCAL_ORDERS_KEY);
+      const data = safeStorage.getItem(LOCAL_ORDERS_KEY);
       if (data) orders = JSON.parse(data);
     } catch (e) {}
 
@@ -500,7 +566,7 @@ export const localStore = {
 
     orders[index] = updatedOrder;
     try {
-      localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(orders));
+      safeStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(orders));
     } catch (e) {}
 
     // Add Kitchen Notification once payment is received
@@ -593,7 +659,7 @@ export const localStore = {
   updateOrderStatus(orderId: string, status: OrderStatus, extra?: Partial<Order>): void {
     let orders: Order[] = [];
     try {
-      const data = localStorage.getItem(LOCAL_ORDERS_KEY);
+      const data = safeStorage.getItem(LOCAL_ORDERS_KEY);
       if (data) {
         orders = JSON.parse(data);
       }
@@ -605,7 +671,7 @@ export const localStore = {
     if (index >= 0) {
       orders[index] = { ...orders[index], status, ...extra };
       try {
-        localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(orders));
+        safeStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(orders));
       } catch (e) {
         console.warn("LocalStore saveOrderStatus error:", e);
       }
@@ -626,7 +692,7 @@ export const localStore = {
 
   getIngredients(): RawIngredient[] {
     try {
-      const data = localStorage.getItem(LOCAL_INGREDIENTS_KEY);
+      const data = safeStorage.getItem(LOCAL_INGREDIENTS_KEY);
       if (data) {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -635,7 +701,7 @@ export const localStore = {
       console.warn("LocalStore getIngredients parse error:", e);
     }
     try {
-      localStorage.setItem(LOCAL_INGREDIENTS_KEY, JSON.stringify(DEFAULT_INGREDIENTS));
+      safeStorage.setItem(LOCAL_INGREDIENTS_KEY, JSON.stringify(DEFAULT_INGREDIENTS));
     } catch (e) {}
     return DEFAULT_INGREDIENTS;
   },
@@ -679,7 +745,7 @@ export const localStore = {
 
   saveIngredients(list: RawIngredient[]): void {
     try {
-      localStorage.setItem(LOCAL_INGREDIENTS_KEY, JSON.stringify(list));
+      safeStorage.setItem(LOCAL_INGREDIENTS_KEY, JSON.stringify(list));
     } catch (e) {}
     ingredientListeners.forEach(cb => { try { cb(list); } catch (err) {} });
   },
@@ -687,7 +753,7 @@ export const localStore = {
   deleteIngredient(id: string): RawIngredient[] {
     const list = this.getIngredients().filter(i => i.id !== id);
     try {
-      localStorage.setItem(LOCAL_INGREDIENTS_KEY, JSON.stringify(list));
+      safeStorage.setItem(LOCAL_INGREDIENTS_KEY, JSON.stringify(list));
     } catch (e) {}
     ingredientListeners.forEach(cb => { try { cb(list); } catch (err) {} });
     return list;
@@ -695,14 +761,14 @@ export const localStore = {
 
   getStockMovements(): StockMovement[] {
     try {
-      const data = localStorage.getItem(LOCAL_STOCK_MOVEMENTS_KEY);
+      const data = safeStorage.getItem(LOCAL_STOCK_MOVEMENTS_KEY);
       if (data) {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
     try {
-      localStorage.setItem(LOCAL_STOCK_MOVEMENTS_KEY, JSON.stringify(DEFAULT_MOVEMENTS));
+      safeStorage.setItem(LOCAL_STOCK_MOVEMENTS_KEY, JSON.stringify(DEFAULT_MOVEMENTS));
     } catch (e) {}
     return DEFAULT_MOVEMENTS;
   },
@@ -716,7 +782,7 @@ export const localStore = {
     };
     list.unshift(newMv);
     try {
-      localStorage.setItem(LOCAL_STOCK_MOVEMENTS_KEY, JSON.stringify(list));
+      safeStorage.setItem(LOCAL_STOCK_MOVEMENTS_KEY, JSON.stringify(list));
     } catch (e) {}
     movementListeners.forEach(cb => { try { cb(list); } catch (err) {} });
     return newMv;
@@ -724,14 +790,14 @@ export const localStore = {
 
   getKitchenNotifications(): AppNotification[] {
     try {
-      const data = localStorage.getItem(LOCAL_NOTIFICATIONS_KEY);
+      const data = safeStorage.getItem(LOCAL_NOTIFICATIONS_KEY);
       if (data) {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
     try {
-      localStorage.setItem(LOCAL_NOTIFICATIONS_KEY, JSON.stringify(DEFAULT_NOTIFICATIONS));
+      safeStorage.setItem(LOCAL_NOTIFICATIONS_KEY, JSON.stringify(DEFAULT_NOTIFICATIONS));
     } catch (e) {}
     return DEFAULT_NOTIFICATIONS;
   },
@@ -739,7 +805,7 @@ export const localStore = {
   markNotificationRead(id: string): AppNotification[] {
     const list = this.getKitchenNotifications().map(n => n.id === id ? { ...n, read: true } : n);
     try {
-      localStorage.setItem(LOCAL_NOTIFICATIONS_KEY, JSON.stringify(list));
+      safeStorage.setItem(LOCAL_NOTIFICATIONS_KEY, JSON.stringify(list));
     } catch (e) {}
     notificationListeners.forEach(cb => { try { cb(list); } catch (err) {} });
     return list;
@@ -748,7 +814,7 @@ export const localStore = {
   markAllNotificationsRead(): AppNotification[] {
     const list = this.getKitchenNotifications().map(n => ({ ...n, read: true }));
     try {
-      localStorage.setItem(LOCAL_NOTIFICATIONS_KEY, JSON.stringify(list));
+      safeStorage.setItem(LOCAL_NOTIFICATIONS_KEY, JSON.stringify(list));
     } catch (e) {}
     notificationListeners.forEach(cb => { try { cb(list); } catch (err) {} });
     return list;
@@ -772,7 +838,7 @@ export const localStore = {
 
   getKitchenStatus(): 'Online' | 'Busy' | 'Offline' {
     try {
-      const status = localStorage.getItem(LOCAL_KITCHEN_STATUS_KEY);
+      const status = safeStorage.getItem(LOCAL_KITCHEN_STATUS_KEY);
       if (status && ['Online', 'Busy', 'Offline'].includes(status)) return status as any;
     } catch (e) {}
     return 'Online';
@@ -780,7 +846,7 @@ export const localStore = {
 
   setKitchenStatus(status: 'Online' | 'Busy' | 'Offline'): void {
     try {
-      localStorage.setItem(LOCAL_KITCHEN_STATUS_KEY, status);
+      safeStorage.setItem(LOCAL_KITCHEN_STATUS_KEY, status);
     } catch (e) {}
     kitchenStatusListeners.forEach(cb => { try { cb(status); } catch (err) {} });
   },
@@ -788,7 +854,7 @@ export const localStore = {
   addAuditLog(log: Omit<KitchenAuditLog, 'id' | 'timestamp'>): KitchenAuditLog {
     let logs: KitchenAuditLog[] = [];
     try {
-      const data = localStorage.getItem(LOCAL_AUDIT_LOG_KEY);
+      const data = safeStorage.getItem(LOCAL_AUDIT_LOG_KEY);
       if (data) logs = JSON.parse(data);
     } catch (e) {}
     const newLog: KitchenAuditLog = {
@@ -798,14 +864,14 @@ export const localStore = {
     };
     logs.unshift(newLog);
     try {
-      localStorage.setItem(LOCAL_AUDIT_LOG_KEY, JSON.stringify(logs));
+      safeStorage.setItem(LOCAL_AUDIT_LOG_KEY, JSON.stringify(logs));
     } catch (e) {}
     return newLog;
   },
 
   getAuditLogs(): KitchenAuditLog[] {
     try {
-      const data = localStorage.getItem(LOCAL_AUDIT_LOG_KEY);
+      const data = safeStorage.getItem(LOCAL_AUDIT_LOG_KEY);
       if (data) return JSON.parse(data);
     } catch (e) {}
     return [];
@@ -852,7 +918,7 @@ export const api = {
     }
     const users = localStore.getUsers().filter(u => u.id !== userId);
     try {
-      localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
+      safeStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
     } catch (e) {}
   },
 
@@ -894,7 +960,7 @@ export const api = {
     const allExisting = await this.getAllUsers();
 
     if (cleanEmail) {
-      const duplicateEmail = allExisting.find(u => u.email && u.email.toLowerCase() === cleanEmail && u.id !== user.id);
+      const duplicateEmail = allExisting.find(u => u.email && u.email.toLowerCase() === cleanEmail);
       if (duplicateEmail) {
         throw new Error(`Email "${cleanEmail}" is already registered by another account.`);
       }
@@ -902,7 +968,7 @@ export const api = {
 
     const cleanUsername = user.username ? user.username.trim().toLowerCase() : '';
     if (cleanUsername) {
-      const duplicateUsername = allExisting.find(u => u.username && u.username.toLowerCase() === cleanUsername && u.id !== user.id);
+      const duplicateUsername = allExisting.find(u => u.username && u.username.toLowerCase() === cleanUsername);
       if (duplicateUsername) {
         throw new Error(`Username "${user.username}" is already taken.`);
       }
@@ -910,7 +976,7 @@ export const api = {
 
     const targetId = user.employeeId || user.studentId || user.rollNumber;
     if (targetId) {
-      const duplicateId = allExisting.find(u => (u.employeeId === targetId || u.studentId === targetId || u.rollNumber === targetId) && u.id !== user.id);
+      const duplicateId = allExisting.find(u => (u.employeeId === targetId || u.studentId === targetId || u.rollNumber === targetId));
       if (duplicateId) {
         throw new Error(`ID "${targetId}" is already assigned to user "${duplicateId.name}".`);
       }
@@ -927,6 +993,8 @@ export const api = {
     }
 
     let uid = user.id;
+    const isKitchenRole = ['KITCHEN', 'STAFF', 'KITCHEN_STAFF', 'COUNTER_STAFF', 'CANTEEN_MANAGER'].includes(roleStr);
+
     try {
       let authEmail = user.email;
       if (!authEmail && user.phoneNumber) {
@@ -936,8 +1004,8 @@ export const api = {
       const isCurrentAuthUser = auth.currentUser && (auth.currentUser.uid === uid || (authEmail && auth.currentUser.email?.toLowerCase() === authEmail.toLowerCase()));
       const isAdminCreatingOtherUser = executingUser || (auth.currentUser && !isCurrentAuthUser);
 
-      // ONLY call createUserWithEmailAndPassword if self-registering and no admin session is active
-      if (!isAdminCreatingOtherUser && !isCurrentAuthUser && user.password && user.password.length >= 6 && authEmail && authEmail.includes('@') && (!uid || uid.startsWith('usr-') || uid === 'temp-id')) {
+      // ONLY call createUserWithEmailAndPassword if self-registering, NOT a kitchen user, and no admin session is active
+      if (!isKitchenRole && !isAdminCreatingOtherUser && !isCurrentAuthUser && user.password && user.password.length >= 6 && authEmail && authEmail.includes('@') && (!uid || uid.startsWith('usr-') || uid === 'temp-id')) {
         try {
           const userCredential = await createUserWithEmailAndPassword(auth, authEmail, user.password);
           uid = userCredential.user.uid;
@@ -957,7 +1025,9 @@ export const api = {
     }
 
     const now = Date.now();
-    const newUser: User & { password?: string } = {
+    const hashedPass = user.password ? await hashPassword(user.password) : undefined;
+
+    const newUser: User & { passwordHash?: string } = {
       id: uid && uid !== 'temp-id' ? uid : `usr-${now}-${Math.random().toString(36).substring(2, 6)}`,
       name: user.name.trim(),
       username: user.username?.trim() || (user.email ? user.email.split('@')[0] : `user_${now}`),
@@ -978,6 +1048,9 @@ export const api = {
       studentId: user.studentId || user.rollNumber || '',
       rollNumber: user.rollNumber || user.studentId || '',
       department: user.department || '',
+      yearClass: user.yearClass || '',
+      kitchenId: user.kitchenId || user.kitchenBranch || '',
+      kitchenBranch: user.kitchenBranch || user.kitchenId || '',
       designation: user.designation || '',
       joiningDate: user.joiningDate || new Date(now).toISOString().split('T')[0],
       address: user.address || '',
@@ -996,7 +1069,7 @@ export const api = {
       updatedBy: executingUser?.id || 'system',
       updatedByName: executingUser?.name || 'System Administrator',
       updatedAt: now,
-      password: user.password
+      passwordHash: hashedPass
     };
 
     try {
@@ -1005,11 +1078,11 @@ export const api = {
       handleFirestoreError(error, OperationType.CREATE, `${USERS_COLLECTION}/${newUser.id}`);
     }
 
-    const { password: _, ...cleanNewUser } = newUser;
-    return localStore.saveUser({ ...cleanNewUser, password: user.password });
+    localStore.saveUser(newUser);
+    return stripSensitiveFields(newUser);
   },
 
-  async updateUser(userId: string, updates: Partial<User & { password?: string }>, executingUser?: User | null): Promise<User> {
+  async updateUser(userId: string, updates: Partial<User & { password?: string; passwordHash?: string }>, executingUser?: User | null): Promise<User> {
     const existing = await this.getUser(userId) || localStore.getUser(userId);
     if (!existing) {
       throw new Error(`User account with ID "${userId}" not found.`);
@@ -1057,19 +1130,27 @@ export const api = {
     }
 
     const now = Date.now();
-    const updatedData: Partial<User> & { password?: string } = {
+    const updatedData: Partial<User & { passwordHash?: string }> = {
       ...updates,
       updatedAt: now,
       updatedBy: executingUser?.id || existing.updatedBy || 'system',
       updatedByName: executingUser?.name || existing.updatedByName || 'System'
     };
 
+    if (updates.password) {
+      if (updates.password.length < 6) {
+        throw new Error("Password must be at least 6 characters long.");
+      }
+      updatedData.passwordHash = await hashPassword(updates.password);
+      delete (updatedData as any).password;
+    }
+
     const merged = { 
       ...existing, 
       ...updatedData 
     } as User;
 
-    localStore.saveUser(merged);
+    localStore.saveUser(merged as any);
 
     try {
       const userRef = doc(db, USERS_COLLECTION, userId);
@@ -1078,7 +1159,30 @@ export const api = {
       handleFirestoreError(error, OperationType.UPDATE, `${USERS_COLLECTION}/${userId}`);
     }
 
-    return merged;
+    return stripSensitiveFields(merged);
+  },
+
+  async toggleUserStatus(userId: string, newStatus: string, executingUser?: User | null): Promise<User> {
+    if (executingUser) {
+      const isExecAdmin = ['ADMIN', 'SUPER_ADMIN', 'CANTEEN_MANAGER', 'VENDOR_ADMIN'].includes(String(executingUser.role));
+      if (!isExecAdmin) {
+        throw new Error("Unauthorized: Only an administrator can activate or deactivate user accounts.");
+      }
+    }
+    return this.updateUser(userId, { status: newStatus }, executingUser);
+  },
+
+  async resetUserPassword(userId: string, newPassword: string, executingUser?: User | null): Promise<User> {
+    if (executingUser) {
+      const isExecAdmin = ['ADMIN', 'SUPER_ADMIN', 'CANTEEN_MANAGER', 'VENDOR_ADMIN'].includes(String(executingUser.role));
+      if (!isExecAdmin) {
+        throw new Error("Unauthorized: Only an administrator can reset user passwords.");
+      }
+    }
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error("Password must be at least 6 characters long.");
+    }
+    return this.updateUser(userId, { password: newPassword }, executingUser);
   },
 
   subscribeToUser(userId: string, callback: (user: User | null) => void): () => void {
@@ -1094,9 +1198,8 @@ export const api = {
       const userRef = doc(db, USERS_COLLECTION, userId);
       unsubFirestore = onSnapshot(userRef, (docSnap) => {
         if (docSnap.exists()) {
-          const user = docSnap.data() as User & { password?: string };
-          const { password: _, ...rest } = user;
-          callback(rest as User);
+          const user = docSnap.data();
+          callback(stripSensitiveFields(user));
         }
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, `${USERS_COLLECTION}/${userId}`);
@@ -1117,23 +1220,36 @@ export const api = {
     const cleanId = identifier.trim();
 
     // 1. Authenticate against local database records first
-    const dbUser = localStore.loginUser(cleanId, password);
-    if (dbUser) {
-      // Async non-blocking Firestore document sync
-      try {
-        const userRef = doc(db, USERS_COLLECTION, dbUser.id);
-        getDoc(userRef).then((userDoc) => {
-          if (userDoc.exists()) {
-            const user = userDoc.data() as User & { password?: string };
-            const { password: _, ...rest } = user;
-            localStore.saveUser(rest as User);
-          } else {
-            setDoc(userRef, dbUser).catch(() => {});
-          }
-        }).catch(() => {});
-      } catch (e) {}
+    const users = localStore.getUsers();
+    const digitsOnly = cleanId.replace(/\D/g, '');
 
-      return dbUser;
+    const found = users.find(u => {
+      const emailMatches = u.email && u.email.toLowerCase() === cleanId.toLowerCase();
+      const usernameMatches = u.username && u.username.toLowerCase() === cleanId.toLowerCase();
+      const phoneClean = u.phoneNumber ? u.phoneNumber.replace(/\D/g, '') : '';
+      const phoneMatches = phoneClean && (phoneClean === digitsOnly || (digitsOnly.length >= 10 && phoneClean.endsWith(digitsOnly.slice(-10))));
+      return emailMatches || usernameMatches || phoneMatches;
+    });
+
+    if (found) {
+      const st = (found.status || 'ACTIVE').toUpperCase();
+      if (st === 'INACTIVE' || st === 'SUSPENDED') {
+        throw new Error("Your account is currently inactive. Please contact system administrator.");
+      }
+
+      const isValidPass = await verifyPassword(password, found);
+      if (!isValidPass) {
+        return null;
+      }
+
+      // Upgrade to passwordHash if missing
+      if (!found.passwordHash && found.password) {
+        found.passwordHash = await hashPassword(found.password);
+        delete found.password;
+        localStore.saveUser(found);
+      }
+
+      return stripSensitiveFields(found);
     }
 
     // 2. If not found in localStore, attempt single Firebase Auth login
@@ -1148,39 +1264,52 @@ export const api = {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const userDoc = await getDoc(doc(db, USERS_COLLECTION, userCredential.user.uid));
       if (userDoc.exists()) {
-        const user = userDoc.data() as User & { password?: string };
-        const { password: _, ...rest } = user;
-        localStore.saveUser(rest as User);
-        return rest as User;
+        const user = userDoc.data();
+        const st = (user.status || 'ACTIVE').toUpperCase();
+        if (st === 'INACTIVE' || st === 'SUSPENDED') {
+          throw new Error("Your account is currently inactive. Please contact system administrator.");
+        }
+        localStore.saveUser(user as User);
+        return stripSensitiveFields(user);
       }
     } catch (error: any) {
+      if (error?.message?.includes('inactive')) throw error;
       // Gracefully handle auth error
     }
 
-    // 3. Fallback: Query Firestore users collection for matching email or phone number
+    // 3. Fallback: Query Firestore users collection for matching email, username or phone number
     try {
-      const qEmail = query(collection(db, USERS_COLLECTION), where('email', '==', cleanId));
+      const qEmail = query(collection(db, USERS_COLLECTION), where('email', '==', cleanId.toLowerCase()));
       const snapEmail = await getDocs(qEmail);
       if (!snapEmail.empty) {
-        const userDocData = snapEmail.docs[0].data() as User & { password?: string };
-        if (!userDocData.password || userDocData.password === password) {
-          const { password: _, ...rest } = userDocData;
-          localStore.saveUser(rest as User);
-          return rest as User;
+        const userDocData = snapEmail.docs[0].data();
+        const st = (userDocData.status || 'ACTIVE').toUpperCase();
+        if (st === 'INACTIVE' || st === 'SUSPENDED') {
+          throw new Error("Your account is currently inactive. Please contact system administrator.");
+        }
+        const isValidPass = await verifyPassword(password, userDocData);
+        if (isValidPass) {
+          localStore.saveUser(userDocData as User);
+          return stripSensitiveFields(userDocData);
         }
       }
 
       const qPhone = query(collection(db, USERS_COLLECTION), where('phoneNumber', '==', cleanId));
       const snapPhone = await getDocs(qPhone);
       if (!snapPhone.empty) {
-        const userDocData = snapPhone.docs[0].data() as User & { password?: string };
-        if (!userDocData.password || userDocData.password === password) {
-          const { password: _, ...rest } = userDocData;
-          localStore.saveUser(rest as User);
-          return rest as User;
+        const userDocData = snapPhone.docs[0].data();
+        const st = (userDocData.status || 'ACTIVE').toUpperCase();
+        if (st === 'INACTIVE' || st === 'SUSPENDED') {
+          throw new Error("Your account is currently inactive. Please contact system administrator.");
+        }
+        const isValidPass = await verifyPassword(password, userDocData);
+        if (isValidPass) {
+          localStore.saveUser(userDocData as User);
+          return stripSensitiveFields(userDocData);
         }
       }
-    } catch (fsErr) {
+    } catch (fsErr: any) {
+      if (fsErr?.message?.includes('inactive')) throw fsErr;
       console.warn("Firestore user lookup fallback notice:", fsErr);
     }
 

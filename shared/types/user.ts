@@ -25,7 +25,10 @@ export interface User {
   joiningDate?: string;
   address?: string;
   emergencyContact?: string;
-  hostelBlock?: string;
+  yearClass?: string;
+  kitchenId?: string;
+  kitchenBranch?: string;
+  passwordHash?: string;
 
   // Account & Authorization
   accessLevel?: string;
