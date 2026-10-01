@@ -838,9 +838,16 @@ export const localStore = {
     };
     list.unshift(newNotif);
     try {
-      localStorage.setItem(LOCAL_NOTIFICATIONS_KEY, JSON.stringify(list));
+      safeStorage.setItem(LOCAL_NOTIFICATIONS_KEY, JSON.stringify(list));
     } catch (e) {}
     notificationListeners.forEach(cb => { try { cb(list); } catch (err) {} });
+
+    try {
+      setDoc(doc(db, NOTIFICATIONS_COLLECTION, newNotif.id), newNotif).catch(e => {
+        handleFirestoreError(e, OperationType.CREATE, NOTIFICATIONS_COLLECTION);
+      });
+    } catch (e) {}
+
     return newNotif;
   },
 
@@ -1708,10 +1715,24 @@ export const api = {
 
   async markAllNotificationsRead(): Promise<AppNotification[]> {
     const list = localStore.markAllNotificationsRead();
+    try {
+      const snapshot = await getDocs(collection(db, NOTIFICATIONS_COLLECTION));
+      const batchPromises = snapshot.docs.map(docSnap => updateDoc(docSnap.ref, { read: true }));
+      await Promise.all(batchPromises);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, NOTIFICATIONS_COLLECTION);
+    }
     return list;
   },
 
   async getKitchenStatus(): Promise<'Online' | 'Busy' | 'Offline'> {
+    try {
+      const docSnap = await getDoc(doc(db, 'settings', 'kitchen_status'));
+      if (docSnap.exists()) {
+        const st = docSnap.data().status;
+        if (st && ['Online', 'Busy', 'Offline'].includes(st)) return st;
+      }
+    } catch (e) {}
     return localStore.getKitchenStatus();
   },
 
@@ -1729,10 +1750,25 @@ export const api = {
   },
 
   async addAuditLog(log: Omit<KitchenAuditLog, 'id' | 'timestamp'>): Promise<KitchenAuditLog> {
-    return localStore.addAuditLog(log);
+    const newLog = localStore.addAuditLog(log);
+    try {
+      await setDoc(doc(db, 'audit_logs', newLog.id), newLog);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `audit_logs/${newLog.id}`);
+    }
+    return newLog;
   },
 
   async getAuditLogs(): Promise<KitchenAuditLog[]> {
+    try {
+      const snapshot = await getDocs(query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc')));
+      if (!snapshot.empty) {
+        const logs = snapshot.docs.map(docSnap => docSnap.data() as KitchenAuditLog);
+        return logs;
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, 'audit_logs');
+    }
     return localStore.getAuditLogs();
   }
 };
