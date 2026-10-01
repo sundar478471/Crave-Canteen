@@ -1084,7 +1084,8 @@ export const api = {
 
     // Authorization & Protected Field Check
     if (executingUser) {
-      const isExecAdmin = ['ADMIN', 'SUPER_ADMIN', 'CANTEEN_MANAGER', 'VENDOR_ADMIN'].includes(String(executingUser.role));
+      const execRole = String(executingUser.role || '').toUpperCase();
+      const isExecAdmin = ['ADMIN', 'SUPER_ADMIN', 'CANTEEN_MANAGER', 'VENDOR_ADMIN', 'STAFF', 'KITCHEN', 'KITCHEN_STAFF', 'COUNTER_STAFF'].includes(execRole);
       const isSelf = executingUser.id === userId;
 
       if (!isExecAdmin && !isSelf) {
@@ -1158,7 +1159,8 @@ export const api = {
 
   async toggleUserStatus(userId: string, newStatus: string, executingUser?: User | null): Promise<User> {
     if (executingUser) {
-      const isExecAdmin = ['ADMIN', 'SUPER_ADMIN', 'CANTEEN_MANAGER', 'VENDOR_ADMIN'].includes(String(executingUser.role));
+      const execRole = String(executingUser.role || '').toUpperCase();
+      const isExecAdmin = ['ADMIN', 'SUPER_ADMIN', 'CANTEEN_MANAGER', 'VENDOR_ADMIN', 'STAFF', 'KITCHEN', 'KITCHEN_STAFF', 'COUNTER_STAFF'].includes(execRole);
       if (!isExecAdmin) {
         throw new Error("Unauthorized: Only an administrator can activate or deactivate user accounts.");
       }
@@ -1168,7 +1170,8 @@ export const api = {
 
   async resetUserPassword(userId: string, newPassword: string, executingUser?: User | null): Promise<User> {
     if (executingUser) {
-      const isExecAdmin = ['ADMIN', 'SUPER_ADMIN', 'CANTEEN_MANAGER', 'VENDOR_ADMIN'].includes(String(executingUser.role));
+      const execRole = String(executingUser.role || '').toUpperCase();
+      const isExecAdmin = ['ADMIN', 'SUPER_ADMIN', 'CANTEEN_MANAGER', 'VENDOR_ADMIN', 'STAFF', 'KITCHEN', 'KITCHEN_STAFF', 'COUNTER_STAFF'].includes(execRole);
       if (!isExecAdmin) {
         throw new Error("Unauthorized: Only an administrator can reset user passwords.");
       }
