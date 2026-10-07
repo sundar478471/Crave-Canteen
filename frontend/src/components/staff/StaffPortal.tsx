@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Order, OrderStatus, FoodItem } from '@shared/types';
 import { STATUS_COLORS } from '@shared/constants';
 
-import { api } from '../../services/api/apiClient';
+import { api, authenticatedFetch } from '../../services/api/apiClient';
 import { Html5Qrcode } from 'html5-qrcode';
 import { 
   Check, Play, Search, Plus, 
@@ -148,7 +148,7 @@ const StaffPortal: React.FC<StaffPortalProps> = ({ orders, onUpdateStatus, menuI
       try {
         const user = await api.getUser(order.userId);
         if (user && user.email) {
-          await fetch('/api/order-status-update', {
+          await authenticatedFetch('/api/order-status-update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -199,7 +199,7 @@ const StaffPortal: React.FC<StaffPortalProps> = ({ orders, onUpdateStatus, menuI
     try {
       const user = await api.getUser(order.userId);
       if (user && user.email) {
-        await fetch('/api/order-status-update', {
+        await authenticatedFetch('/api/order-status-update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 

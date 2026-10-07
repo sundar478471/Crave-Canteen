@@ -37,25 +37,38 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  };
-  console.warn('Firestore Operation Notice: ', JSON.stringify(errInfo));
+  if (process.env.NODE_ENV !== 'production') {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.debug(`[Firestore Operation Notice] ${operationType} on ${path || 'resource'}: ${errMsg}`);
+  }
+}
+
+export async function getAuthToken(forceRefresh = false): Promise<string | null> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return null;
+  try {
+    return await currentUser.getIdToken(forceRefresh);
+  } catch {
+    return null;
+  }
+}
+
+export async function authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  let token = await getAuthToken(false);
+  const headers = new Headers(options.headers || {});
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  let response = await fetch(url, { ...options, headers });
+  if (response.status === 401 && auth.currentUser) {
+    token = await getAuthToken(true);
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+      response = await fetch(url, { ...options, headers });
+    }
+  }
+  return response;
 }
 
 const USERS_COLLECTION = 'users';

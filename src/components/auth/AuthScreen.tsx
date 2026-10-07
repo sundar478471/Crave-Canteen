@@ -58,13 +58,15 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
     }
 
     setIsProcessing(true);
+    const loginStartTime = performance.now();
 
     try {
       // Authenticate with system backend
       const user = await api.loginUser(cleanEmail, password);
+      const authEndTime = performance.now();
 
       if (!user) {
-        setError("Invalid User ID or Password. Please check your credentials.");
+        setError("Invalid ID/password");
         setIsProcessing(false);
         return;
       }
@@ -85,18 +87,20 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
       }
 
       if (!isRoleMatching) {
-        setError(`Invalid User ID or Password for the ${selectedRole.toLowerCase()} portal. Your account is registered under a different portal role (${user.role}). Please select the correct portal.`);
+        setError("Invalid ID/password");
         setIsProcessing(false);
         return;
       }
 
-      setSuccess(`Authenticated successfully as ${user.name}!`);
-      setTimeout(() => {
-        onLogin(user);
-      }, 600);
+      const roleVerifyEndTime = performance.now();
+      onLogin(user);
+      const navEndTime = performance.now();
 
+      if (process.env.NODE_ENV !== 'production') {
+        console.info(`[Auth Performance] Total login verification + navigation: ${Math.round(navEndTime - loginStartTime)}ms (Auth: ${Math.round(authEndTime - loginStartTime)}ms, Role: ${Math.round(roleVerifyEndTime - authEndTime)}ms)`);
+      }
     } catch (err: any) {
-      setError(err?.message || "Invalid User ID or Password. Please check your credentials.");
+      setError("Invalid ID/password");
     } finally {
       setIsProcessing(false);
     }

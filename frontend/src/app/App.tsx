@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, UserRole, FoodItem, Order, OrderStatus } from '@shared/types';
 import { CATEGORIES, CATEGORY_SLOTS } from '@shared/constants';
 
-import { api } from '../services/api/apiClient';
+import { api, authenticatedFetch } from '../services/api/apiClient';
 import AuthScreen from '../components/auth/AuthScreen';
 import Sidebar from '../components/layout/Sidebar';
 import FoodCard from '../components/menu/FoodCard';
@@ -240,7 +240,7 @@ const App: React.FC = () => {
     }
     setEmailProcessing(true);
     try {
-      const response = await fetch('/api/send-email', {
+      const response = await authenticatedFetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -381,7 +381,7 @@ const App: React.FC = () => {
       setRedeemPoints(false);
 
       try {
-        const res = await fetch('/api/orders', {
+        const res = await authenticatedFetch('/api/orders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

@@ -4,11 +4,12 @@ import { UserRole } from '../../../shared/types/index.js';
 
 export function requireRole(allowedRoles: UserRole[]) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
-    const userRole = req.user?.role || req.body?.user?.role;
+    const userRole = req.user?.role;
     if (!userRole || !allowedRoles.includes(userRole as UserRole)) {
-      res.status(403).json({ error: 'Forbidden: Insufficient privileges' });
+      res.status(403).json({ error: 'Forbidden' });
       return;
     }
     next();
   };
 }
+

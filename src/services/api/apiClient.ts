@@ -38,21 +38,49 @@ export interface FirestoreErrorInfo {
 const fallbackLogsSeen = new Set<string>();
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errMsg = error instanceof Error ? error.message : String(error);
-  const isFallback = errMsg.includes('client is offline') || 
-                     errMsg.includes('insufficient permissions') || 
-                     errMsg.includes('permission-denied') || 
-                     !auth.currentUser;
+  if (process.env.NODE_ENV !== 'production') {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const isFallback = errMsg.includes('client is offline') || 
+                       errMsg.includes('insufficient permissions') || 
+                       errMsg.includes('permission-denied') || 
+                       !auth.currentUser;
 
-  if (isFallback) {
-    const logKey = `${operationType}:${path || 'resource'}`;
-    if (!fallbackLogsSeen.has(logKey)) {
-      fallbackLogsSeen.add(logKey);
-      console.debug(`[Local Fallback Mode] Firestore ${operationType} on ${path || 'resource'} fallback to localStore.`);
+    if (isFallback) {
+      const logKey = `${operationType}:${path || 'resource'}`;
+      if (!fallbackLogsSeen.has(logKey)) {
+        fallbackLogsSeen.add(logKey);
+        console.debug(`[Local Fallback Mode] Firestore ${operationType} on ${path || 'resource'} fallback to localStore.`);
+      }
     }
-  } else {
-    console.warn('Firestore Operation Notice:', errMsg);
   }
+}
+
+export async function getAuthToken(forceRefresh = false): Promise<string | null> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return null;
+  try {
+    return await currentUser.getIdToken(forceRefresh);
+  } catch {
+    return null;
+  }
+}
+
+export async function authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  let token = await getAuthToken(false);
+  const headers = new Headers(options.headers || {});
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  let response = await fetch(url, { ...options, headers });
+  if (response.status === 401 && auth.currentUser) {
+    token = await getAuthToken(true);
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+      response = await fetch(url, { ...options, headers });
+    }
+  }
+  return response;
 }
 
 const USERS_COLLECTION = 'users';

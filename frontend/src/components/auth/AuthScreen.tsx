@@ -82,10 +82,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
         appUser = await api.registerUser(newUser);
       }
       setShowGoogleModal(false);
-      setSuccess(`Welcome, ${appUser.name}!`);
-      setTimeout(() => onLogin(appUser!), 800);
+      onLogin(appUser!);
     } catch (err: any) {
-      setError(err?.message || "Failed to sign in with Google account.");
+      setError("Invalid ID/password");
     } finally {
       setIsProcessing(false);
     }
@@ -98,7 +97,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
       await signInWithRedirect(auth, googleProvider);
     } catch (err: any) {
       setIsProcessing(false);
-      console.info("Google Sign-In redirect info:", err);
       setShowGoogleModal(true);
     }
   };
@@ -109,7 +107,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
     try {
       await signInWithRedirect(auth, googleProvider);
     } catch (err: any) {
-      console.warn("Redirect Error:", err);
       setShowGoogleModal(true);
       setIsProcessing(false);
     }
@@ -141,6 +138,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
     }
 
     setIsProcessing(true);
+    const loginStartTime = performance.now();
 
     try {
       if (isLogin) {
@@ -157,8 +155,12 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
               rewardPoints: 500
             });
           }
-          setSuccess("Access Granted. Syncing Kitchen Vault...");
-          setTimeout(() => onLogin(user!), 1000);
+          if (!user) {
+            setError("Invalid ID/password");
+            setIsProcessing(false);
+            return;
+          }
+          onLogin(user);
           return;
         }
 
@@ -170,10 +172,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
         }
         
         if (!user) {
-          setError("User not found or invalid credentials.");
+          setError("Invalid ID/password");
         } else {
-          setSuccess(`Welcome back, ${user.name}!`);
-          setTimeout(() => onLogin(user), 1000);
+          onLogin(user);
+          if (process.env.NODE_ENV !== 'production') {
+            const navEndTime = performance.now();
+            console.info(`[Auth Performance] Login verified & navigated in ${Math.round(navEndTime - loginStartTime)}ms`);
+          }
         }
       } else {
         try {
@@ -187,16 +192,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
             rewardPoints: 100
           };
           const registeredUser = await api.registerUser(newUser);
-          setSuccess("Account Activated! Entering Hub...");
-          setTimeout(() => {
-            onLogin(registeredUser);
-          }, 1500);
+          onLogin(registeredUser);
         } catch (err: any) {
-          setError(err.message || "Account already exists or registration failed.");
+          setError("Invalid ID/password");
         }
       }
     } catch (err) {
-      setError("Authentication failed. Please retry.");
+      setError("Invalid ID/password");
     } finally {
       setIsProcessing(false);
     }
